@@ -1,0 +1,15 @@
+/Applications/CLion.app/Contents/bin/cmake/mac/x64/bin/cmake -DCMAKE_BUILD_TYPE=Debug -DCMAKE_MAKE_PROGRAM=/Applications/CLion.app/Contents/bin/ninja/mac/x64/ninja -G Ninja -S "/Users/vittor/Documents/CLASSES/SPRING 2024/CHEM_179_HW5" -B "/Users/vittor/Documents/CLASSES/SPRING 2024/CHEM_179_HW5/cmake-build-debug"
+-- Looking for sgemm_
+-- Looking for sgemm_ - not found
+-- Performing Test CMAKE_HAVE_LIBC_PTHREAD
+-- Performing Test CMAKE_HAVE_LIBC_PTHREAD - Success
+-- Found Threads: TRUE  
+-- Looking for dgemm_
+-- Looking for dgemm_ - found
+-- Found BLAS: /Library/Developer/CommandLineTools/SDKs/MacOSX13.0.sdk/System/Library/Frameworks/Accelerate.framework  
+-- Looking for cheev_
+-- Looking for cheev_ - found
+-- Found LAPACK: /Library/Developer/CommandLineTools/SDKs/MacOSX13.0.sdk/System/Library/Frameworks/Accelerate.framework;-lm;-ldl  
+-- Configuring done (9.9s)
+-- Generating done (0.0s)
+-- Build files have been written to: /Users/vittor/Documents/CLASSES/SPRING 2024/CHEM_179_HW5/cmake-build-debug
