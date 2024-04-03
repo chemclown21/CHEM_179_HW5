@@ -1,5 +1,5 @@
 //
-// Created by Vitto Resnick on 2/28/24.
+// Created by Vitto Resnick on 3/29/24.
 //
 #include <iostream>
 #include <cmath>
@@ -1209,8 +1209,10 @@ double GoldenSectionSearch(double EnergyConvergenceThreshold,
     double E_C = pos2E(C,const_data,false);
 
     if (abs(E_A-E_B) <= EnergyConvergenceThreshold or abs(E_B-E_C) <= EnergyConvergenceThreshold){
+        cout << "Energy converged! *b" << endl;
         return b;
     } else if (abs(E_A-E_C) <= EnergyConvergenceThreshold) {
+        cout << "Energy converged! *a" << endl;
         return a;
     } else {
         double x = a + golden*(c-a);
@@ -1271,6 +1273,7 @@ mat steepest_descent(mat A, tuple<vector<vec>,vec,vector<int>,vector<int>,string
 
     // check for convergence
     if (GradNorm(n,F) <= ForceConvergenceThreshold){
+        cout << "Force converged!" << endl;
         return A;
     } else {
         // take a step in the opposite direction
@@ -1307,12 +1310,12 @@ mat steepest_descent(mat A, tuple<vector<vec>,vec,vector<int>,vector<int>,string
 
 int main(int argc, char* argv[]) {
     // Program inputs
-    // if (argc !=2){
-    //    printf("Usage: hw3 <filename>, for example hw3 example.txt\n");
-    //    return EXIT_FAILURE;
-    //}
-    //string file_name = argv[1];
-    string file_name = "/Users/vittor/Documents/CLASSES/SPRING 2024/CHEM_179_HW3/sample_input/C2H4.txt";
+    if (argc !=2){
+        printf("Usage: hw3 <filename>, for example hw3 example.txt\n");
+        return EXIT_FAILURE;
+    }
+    string file_name = argv[1];
+    //string file_name = "/Users/vittor/Documents/CLASSES/SPRING 2024/CHEM_179_HW3/sample_input/C2H4.txt";
 
     string H_path_name = "/Users/vittor/Documents/CLASSES/SPRING 2024/CHEM_179_HW5/basis/H_STO3G.txt";
     string C_path_name = "/Users/vittor/Documents/CLASSES/SPRING 2024/CHEM_179_HW5/basis/C_STO3G.txt";
@@ -1343,7 +1346,7 @@ int main(int argc, char* argv[]) {
 
     bool optimize = true;
     if (optimize){
-        cout << "Start steepest descent with golden section line search using central difference force" << endl;
+        cout << "Start steepest descent with golden section line search using analytical force" << endl;
         int it = 0;
         A = steepest_descent(A,const_data,it);
 
