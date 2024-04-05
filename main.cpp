@@ -1197,7 +1197,310 @@ double pos2E(mat pos, tuple<vector<vec>,vec,vector<int>,vector<int>,string> cons
     return energy;
 }
 
-// Golden Section Line Search (from HW 1)
+// Approximate Central Difference Force
+double ApproxCNDO_Force(mat X, const string& dir, tuple<vector<vec>,vec,vector<int>,vector<int>,string> const_data, double h){
+    mat X1 = X, X2 = X;
+    if (dir == "x"){
+        // Change coords of second atom (1)
+        X1(0,1) = X(0,1)+h;
+        X2(0,1) = X(0,1)-h;
+    } else if (dir == "y"){
+        X1(1,1) = X(1,1)+h;
+        X2(1,1) = X(1,1)-h;
+    } else if (dir == "z"){
+        X1(2,1) = X(2,1)+h;
+        X2(2,1) = X(2,1)-h;
+    }
+    // pos2E(X,const_data,false)
+    double approxF = -pow(2*h,-1)*(pos2E(X1,const_data,false)-pos2E(X2,const_data,false));
+
+    return approxF;
+}
+
+//Central Difference
+mat    cF(mat X, tuple<vector<vec>,vec,vector<int>,vector<int>,string> const_data, double h){
+    int n = X.n_cols;
+    mat Cen_F(3,n,fill::zeros);
+    for (int i = 0; i < n; ++i) {
+        double Cen_F_x_i = 0, Cen_F_y_i = 0, Cen_F_z_i = 0;
+        for (int j = 0; j < n; ++j) {
+            if (i != j) {
+                //ApproxCNDO_Force(mat X, const string& dir, tuple<vector<vec>,vec,vector<int>,vector<int>,string> const_data, double h){
+                //    mat
+                // calculate central difference force of this specific 2-body interaction
+
+                double Cen_F_x_ij = ApproxCNDO_Force(X, "x",const_data,h);
+                double Cen_F_y_ij = ApproxCNDO_Force(X, "y",const_data,h);
+                double Cen_F_z_ij = ApproxCNDO_Force(X, "z",const_data,h);
+                // Add contribution of two-body interactions to atom-specific force calculations
+                Cen_F_x_i += Cen_F_x_ij;
+                Cen_F_y_i += Cen_F_y_ij;
+                Cen_F_z_i += Cen_F_z_ij;
+            }
+        }
+        // Add force calculations to matrices
+        Cen_F(0,i) = Cen_F_x_i;
+        Cen_F(1,i) = Cen_F_y_i;
+        Cen_F(2,i) = Cen_F_z_i;
+    }
+    return Cen_F;
+}
+
+
+// Golden Section Line Search (from HW 1) - second version (doesn't work)
+double GoldenSectionSearch1(double EnergyConvergenceThreshold,
+                           int n,mat F, mat A,
+                           double a, double b, double c,tuple<vector<vec>,vec,vector<int>,vector<int>,string> const_data){
+    double golden = (3-sqrt(5))/2;
+    mat B = A + UnitGrad(n,F)*b;
+    mat C = A + UnitGrad(n,F)*c;
+    double E_A = pos2E(A,const_data,false);
+    double E_B = pos2E(B,const_data,false);
+    double E_C = pos2E(C,const_data,false);
+
+    if (abs(E_A-E_B) <= EnergyConvergenceThreshold or abs(E_B-E_C) <= EnergyConvergenceThreshold){
+        cout << "Energy converged! *b" << endl;
+        return b;
+    } else if (abs(E_A-E_C) <= EnergyConvergenceThreshold) {
+        cout << "Energy converged! *a" << endl;
+        return a;
+    } else {
+        double x = a + golden*(c-a);
+        mat X = A + UnitGrad(n,F)*x;
+        double E_X = pos2E(X,const_data,false);
+        // if f(x) < f(b)
+        if (E_X < E_B){
+            // if f(x) < f(b) and a < b < x, new (a,b,c)=(b,x,c)
+            if (x > b){
+                return GoldenSectionSearch1(EnergyConvergenceThreshold,n,F,A,b,x,c,const_data);
+            } else { // if f(x) < f(b) and a < x < b, new (a,b,c)=(a,x,b)
+                return GoldenSectionSearch1(EnergyConvergenceThreshold,n,F,A,a,x,b,const_data);
+            }
+        } else {     // if f(x) > f(b)
+            // if f(x) > f(b) and a < b < x, new (a,b,c)=(a,b,x)
+            if (x > b){
+                return GoldenSectionSearch1(EnergyConvergenceThreshold,n,F,A,a,b,x,const_data);
+            } else { // if f(x) > f(b) and a < x < b, new (a,b,c)=(x,b,c)
+                return GoldenSectionSearch1(EnergyConvergenceThreshold,n,F,A,x,b,c,const_data);
+            }
+        }
+    }
+}
+
+// 1D Steepest Descent (from HW 1) - second version (doesn't work)
+mat steepest_descent1(mat A, tuple<vector<vec>,vec,vector<int>,vector<int>,string> const_data, int& i){
+
+    i += 1; // This is the i-th iteration
+    double h = 0.0001;
+    double s = 0.3; // initial step
+    double ForceConvergenceThreshold = 0.01;
+    double EnergyConvergenceThreshold = 1e-8;
+    int n = A.n_cols;
+
+    // 1. Input initial point guess (Point A)
+    double a = 0;
+    double E_A = pos2E(A,const_data,false);
+
+    // 2.1. Compute the gradient, take a step in the opposite direction, check for convergence
+
+    // Compute the gradient
+    bool useAnalytical = true;
+    mat F;
+    if (useAnalytical){
+        mat gradient = analytical_E_RA(A,const_data,false,false);
+        F = gradient;
+    } else {
+        F = cF(A,const_data,h);
+    }
+    // add else statement for central difference
+
+    // Print New point & grad
+    if (!(i==0)){
+        cout << "Start golden section search" << endl;
+        A.print("new_point");
+        cout << "current energy: " << pos2E(A,const_data,false) << endl;
+        mat Cen_F = cF(A,const_data,h);
+        Cen_F.print("Central Difference Force");
+    }
+
+
+    // check for convergence
+    if (GradNorm(n,F) <= ForceConvergenceThreshold){
+        cout << "Force converged!" << endl;
+        return A;
+    } else {
+        // take a step in the opposite direction
+        double b = s;
+        mat B = A + UnitGrad(n,F)*b;
+        double E_B = pos2E(B,const_data,false);
+
+        // 2.2. Search for Point B in the opposite direction of the gradient (E(B) < E(A))
+        while (!(E_B<E_A)){
+            b /= 2;
+            B = A + UnitGrad(n,F)*b;
+            E_B = pos2E(B,const_data,false);
+        }
+
+        // 2.3. Search for Point C in the opposite direction of the gradient (E(C) > E(B))
+        double c = 10;
+        mat C = A + UnitGrad(n,F)*c;
+        double E_C = pos2E(C,const_data,false);
+        while (!(E_C > E_B)){
+            c *= 2;
+            C = A + UnitGrad(n,F)*c;
+            E_C = pos2E(C,const_data,false);
+        }
+
+        // 2.5. If can find both B and C, use golden section search
+        // for the minimum in the opposite direction of the gradient,
+        double step_size = GoldenSectionSearch1(EnergyConvergenceThreshold,n,F,A,a,b,c,const_data);
+        A = A + UnitGrad(n,F)*step_size;
+
+        // return to step 2.1
+        return steepest_descent1(A,const_data,i);
+    }
+}
+
+//Steepest descent with 1d line search - Xiao's version (doesn't work)
+void Steepest_descent_line_search(mat opt_atom_pos, mat atom_pos, tuple<vector<vec>,vec,vector<int>,vector<int>,string> const_data, double fdstepsize, double searchstepsize, double fthresh, double ethresh) {
+    double golden_ratio = 0.38197;
+    // first bracket A<B<D (A is the inital point), such that E(B)<E(A),E(B)<E(D)
+    // during line search, we keep the order A<B<C<D
+    mat A_point = atom_pos;
+    mat B_point(3, atom_pos.size());
+    mat C_point(3, atom_pos.size());
+    mat D_point(3, atom_pos.size());
+    // length between points
+    double AB, BD, AD;
+    double golden_tol = 1e-7; // tolerance to stop golden search
+    double init_searchstepsize = searchstepsize;
+
+    double E_A = pos2E(A_point,const_data,false);
+    cout << "Initial energy: "<< E_A << endl;
+    mat cForce, unitForce;
+    cout << "Stepsize for central difference is:" << fdstepsize << ";Initial stepsize for line search is:" << searchstepsize << ";Threshold for convergence in force is:" << fthresh << endl;
+    cForce = cF(A_point,const_data,fdstepsize);
+    cForce.print("Central Difference Force");
+
+    double old_e = 1e308;
+    double cur_e = E_A;
+
+    int count = 0;
+    cout << "Start steepest descent with golden section line search using central difference force" << endl;
+    //main loop
+    while(norm(cForce,"fro") > fthresh || abs(cur_e - old_e) > ethresh) { //Use both norm of Force and different of energy as the criterion to better confirm convergence
+        unitForce = cForce/norm(cForce,"fro"); //Use unit force (unit vector) in case the force is too large or small
+        count++;
+        //search for point B
+        int bracket_count = 0;
+        bool FindB = true;
+        B_point = A_point + searchstepsize * unitForce;
+        double E_B = pos2E(B_point,const_data,false);
+        while (E_B > E_A) {
+            searchstepsize /= 2; //Halve the step size if B is not found in this iteration
+            B_point = A_point + searchstepsize * unitForce;
+            E_B = pos2E(B_point,const_data,false);
+            bracket_count++;
+            //break the loop if we cannot find B in finite iterations
+            if (bracket_count > 100) {
+                cout << "Cannot find point B" << endl;
+                FindB = false;
+                break;
+            }
+        }
+        //search for point D if point B is found
+        bracket_count = 0;
+        bool FindD = true;
+        if (FindB) {
+            D_point = B_point + searchstepsize * unitForce;
+            double E_D = pos2E(D_point,const_data,false);
+            while (E_D < E_B) {
+                searchstepsize *= 1.2; //Increase the stepsize if D is not found in this iteration
+                D_point = B_point + searchstepsize * unitForce;
+                E_D = pos2E(D_point,const_data,false);
+                bracket_count++;
+                //break the loop if we cannot find D in finite iterations
+                if (bracket_count > 100) {
+                    cout << "Cannot find point D" << endl;
+                    FindD = false;
+                    break;
+                }
+            }
+        }
+
+        // if we fail to find B or D, it is possible there's no local minima along the
+        // negative gradient direction, in this case we move one step towards the negative
+        // gradient to decrease energy, then use line search in the future steps
+        if (!FindB || !FindD) {
+            cout << "Cannot find B or D, using normal steepest descent algorithm" << endl;
+            searchstepsize = init_searchstepsize;
+            mat new_point = A_point + searchstepsize * unitForce;
+            while (pos2E(new_point,const_data,false) > E_A){
+                searchstepsize /= 2;
+                new_point = A_point - searchstepsize * unitForce;
+            }
+            A_point = new_point;
+            A_point.print("new_point");
+            opt_atom_pos = A_point;
+            printf("current energy: %.3e\n", pos2E(opt_atom_pos,const_data,false));
+            cForce = cF(opt_atom_pos,const_data,fdstepsize);
+            cForce.print("Central Difference Force");
+            old_e = cur_e;
+            cur_e = pos2E(opt_atom_pos,const_data,false);
+            continue;
+        }
+        else { //If we find both B and D, start the Golden section search
+            cout << "Start golden section search" << endl;
+            AB = norm(B_point - A_point, "fro");
+            BD = norm(D_point - B_point, "fro");
+            AD = norm(D_point - A_point, "fro");
+            if (AB < BD) {
+                C_point = D_point + golden_ratio * (A_point - D_point);
+            }
+            else {
+                C_point = B_point;
+                B_point = A_point + golden_ratio * (D_point - A_point);
+            }
+            while (AD > golden_tol) {
+                if (pos2E(B_point,const_data,false) > pos2E(C_point,const_data,false)) {
+                    A_point = B_point;
+                    B_point = C_point;
+                } else {
+                    D_point = C_point;
+                }
+                AB = norm(B_point-A_point, "fro");
+                BD = norm(D_point-B_point, "fro");
+                AD = norm(D_point-A_point, "fro");
+                if (AB < BD) {
+                    C_point = D_point + golden_ratio*(A_point-D_point);
+                } else {
+                    C_point = B_point;
+                    B_point = A_point + golden_ratio*(D_point-A_point);
+                }
+            }
+            //renew the point according to the relative energy between B and C
+            if ( pos2E(B_point,const_data,false) > pos2E(C_point,const_data,false)) {
+                C_point.print("new_point");
+                opt_atom_pos = C_point;
+                printf("current energy: %.3e\n", pos2E(opt_atom_pos,const_data,false));
+            } else {
+                B_point.print("new_point");
+                opt_atom_pos = B_point;
+                printf("current energy: %.3e\n", pos2E(opt_atom_pos,const_data,false));
+            }
+            cForce = cF(opt_atom_pos,const_data,fdstepsize);
+            cForce.print("Central Difference Force");
+            old_e = cur_e;
+            cur_e = pos2E(opt_atom_pos,const_data,false);
+        }
+    }
+
+    cout << "Total iterations: " << count << endl;
+    printf("Final energy: %.3e\n", pos2E(opt_atom_pos,const_data,false));
+}
+
+
+// Golden Section Line Search (from HW 1) - first version (works)
 double GoldenSectionSearch(double EnergyConvergenceThreshold,
                            int n,mat F, mat A,
                            double a, double b, double c,tuple<vector<vec>,vec,vector<int>,vector<int>,string> const_data){
@@ -1237,7 +1540,7 @@ double GoldenSectionSearch(double EnergyConvergenceThreshold,
     }
 }
 
-// 1D Steepest Descent (from HW 1)
+// 1D Steepest Descent (from HW 1) - first version (works)
 mat steepest_descent(mat A, tuple<vector<vec>,vec,vector<int>,vector<int>,string> const_data, int& i){
 
     i += 1; // This is the i-th iteration
@@ -1316,6 +1619,7 @@ int main(int argc, char* argv[]) {
     }
     string file_name = argv[1];
     //string file_name = "/Users/vittor/Documents/CLASSES/SPRING 2024/CHEM_179_HW3/sample_input/C2H4.txt";
+    //string file_name = "/Users/vittor/Documents/CLASSES/SPRING 2024/CHEM_179_HW5/sample_input/HF.txt";
 
     string H_path_name = "/Users/vittor/Documents/CLASSES/SPRING 2024/CHEM_179_HW5/basis/H_STO3G.txt";
     string C_path_name = "/Users/vittor/Documents/CLASSES/SPRING 2024/CHEM_179_HW5/basis/C_STO3G.txt";
@@ -1342,10 +1646,13 @@ int main(int argc, char* argv[]) {
 
     // Starting coordinates
     mat A = VecVec2Mat(n_atoms,xyz_list);
-    mat F = analytical_E_RA(A, const_data, true, true);
+    //mat gradient = analytical_E_RA(A, const_data, false, false);
+    mat gradient = analytical_E_RA(A, const_data, true, true);
 
-    bool optimize = true;
-    if (optimize){
+
+    bool optimize1 = true;
+    bool optimize2 = false;
+    if (optimize1){
         cout << "Start steepest descent with golden section line search using analytical force" << endl;
         int it = 0;
         A = steepest_descent(A,const_data,it);
@@ -1358,5 +1665,16 @@ int main(int argc, char* argv[]) {
         for (int i = 0; i < n_atoms; ++i) {
             cout << atom_list[i] <<  '(' << A(0,i) << ',' << A(1,i) << ',' << A(2,i) << ')' << endl;
         }
+    } else if (optimize2){
+        mat pos = A;
+        mat opt_pos = pos;
+        cout << "start steepest descent with golden section line search" << endl;
+        Steepest_descent_line_search(opt_pos, pos,const_data, 1e-4, 0.3, 1e-2, 1e-2);
+
+        cout << "Optimized structure:" << endl;
+        for (int i = 0; i < n_atoms; ++i) {
+            cout << atom_list[i] <<  '(' << A(0,i) << ',' << A(1,i) << ',' << A(2,i) << ')' << endl;
+        }
     }
+
 }
